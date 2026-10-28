@@ -1,5 +1,5 @@
 import SectionHeading from "../ui/SectionHeading";
-import { Code2, Layers, Cpu, Compass } from "lucide-react";
+import { Code2, Layers, Cpu } from "lucide-react";
 
 export default function About() {
   return (

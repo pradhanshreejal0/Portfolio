@@ -1,11 +1,10 @@
-// import React from "react";
-
 import Layout from "./components/layouts/Layout";
+import Home from "./pages/Home";
 
 export default function App() {
   return (
-    <div>
-      <Layout />
-    </div>
+    <Layout>
+      <Home />
+    </Layout>
   );
 }

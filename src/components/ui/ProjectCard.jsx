@@ -1,4 +1,5 @@
-import { ExternalLink, Github, Sparkles, CheckCircle2 } from "lucide-react";
+import { ExternalLink, Sparkles, CheckCircle2 } from "lucide-react";
+import { GithubIcon } from "./BrandIcons";
 
 export default function ProjectCard({ project }) {
   const {
@@ -101,7 +102,7 @@ export default function ProjectCard({ project }) {
             rel="noreferrer"
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 hover:text-white text-sm font-medium transition-all"
           >
-            <Github className="w-4 h-4" />
+            <GithubIcon className="w-4 h-4" />
             Source Code
           </a>
         )}

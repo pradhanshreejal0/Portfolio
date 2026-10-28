@@ -1,6 +1,7 @@
 import { useState } from "react";
 import SectionHeading from "../ui/SectionHeading";
-import { Mail, Github, MapPin, Send, CheckCircle2, MessageSquare } from "lucide-react";
+import { Mail, MapPin, Send, CheckCircle2, MessageSquare } from "lucide-react";
+import { GithubIcon } from "../ui/BrandIcons";
 
 export default function Contact() {
   const [formData, setFormData] = useState({
@@ -64,7 +65,7 @@ export default function Contact() {
                 className="flex items-center gap-3.5 p-3 rounded-xl bg-slate-900/60 hover:bg-slate-900 border border-slate-700/60 text-slate-300 hover:text-white transition group"
               >
                 <div className="p-2.5 rounded-lg bg-indigo-600/20 text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition">
-                  <Github className="w-5 h-5" />
+                  <GithubIcon className="w-5 h-5" />
                 </div>
                 <div>
                   <div className="text-xs text-slate-400 font-medium">GitHub</div>

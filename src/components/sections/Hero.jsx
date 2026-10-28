@@ -1,4 +1,5 @@
-import { ArrowRight, Github, Mail, Sparkles, Terminal } from "lucide-react";
+import { ArrowRight, Mail, Sparkles, Terminal } from "lucide-react";
+import { GithubIcon } from "../ui/BrandIcons";
 
 export default function Hero() {
   return (
@@ -45,7 +46,7 @@ export default function Hero() {
           rel="noreferrer"
           className="inline-flex items-center gap-2 px-4 py-3 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/80 text-sm font-medium transition-all"
         >
-          <Github className="w-4 h-4" />
+          <GithubIcon className="w-4 h-4" />
           GitHub
         </a>
       </div>
