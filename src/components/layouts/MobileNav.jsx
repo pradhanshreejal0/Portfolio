@@ -106,7 +106,7 @@ export default function MobileNav() {
                   <GithubIcon className="w-4 h-4" />
                 </a>
                 <a
-                  href="mailto:pradhanshreejal@gmail.com"
+                  href="mailto:pradhanshreejal0@gmail.com"
                   className="hover:text-white"
                 >
                   <Mail className="w-4 h-4" />

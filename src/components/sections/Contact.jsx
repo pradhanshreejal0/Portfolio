@@ -44,7 +44,7 @@ export default function Contact() {
 
             <div className="space-y-4">
               <a
-                href="mailto:pradhanshreejal@gmail.com"
+                href="mailto:pradhanshreejal0@gmail.com"
                 className="flex items-center gap-3.5 p-3 rounded-xl bg-slate-900/60 hover:bg-slate-900 border border-slate-700/60 text-slate-300 hover:text-white transition group"
               >
                 <div className="p-2.5 rounded-lg bg-indigo-600/20 text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition">
@@ -53,7 +53,7 @@ export default function Contact() {
                 <div>
                   <div className="text-xs text-slate-400 font-medium">Email Me</div>
                   <div className="text-sm font-semibold text-slate-200">
-                    pradhanshreejal@gmail.com
+                    pradhanshreejal0@gmail.com
                   </div>
                 </div>
               </a>

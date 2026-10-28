@@ -137,7 +137,7 @@ export default function Sidebar() {
             <LinkedinIcon className="w-4 h-4" />
           </a>
           <a
-            href="mailto:pradhanshreejal@gmail.com"
+            href="mailto:pradhanshreejal0@gmail.com"
             aria-label="Email"
             className="p-2 rounded-lg hover:bg-slate-800 hover:text-white transition"
           >
