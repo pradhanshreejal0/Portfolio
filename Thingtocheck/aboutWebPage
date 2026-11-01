@@ -1,0 +1,454 @@
+Code Review · Portfolio
+
+A solid small React portfolio — with one serious trap and a handful of polish gaps
+Everything below was measured, not guessed: I cloned the repo, ran the real build, linter and dependency audit, then opened the production bundle in a headless Chromium and probed it with script. Findings are separated into real defects, verifiable risks, and optional polish.
+
+Repo pradhanshreejal0/Portfolio
+Commit 3a30e16 · 6 commits
+Stack React 19 · Vite 8 · Tailwind v4
+Size 29 files · 1,092 LOC src
+Reviewed 1 Nov 2026
+Verdict: genuinely well-built for a personal site
+Clean structure, tidy data decoupling, zero lint errors and zero known vulnerabilities, and a genuinely good visual design. The problems are not architecture — they're a contact form that lies to visitors, an accessibility gap in the form, and some unused/dependent leftovers to clear out.
+
+Structure
+A−
+Code quality
+B+
+Accessibility
+C+
+Performance
+B−
+Security
+B+
+SEO
+C
+What's already right — worth saying plainly, because a lot of portfolios get these wrong: verbatim separation of content into src/data/*, one concern per component, consistent Tailwind token usage, rel="noreferrer" on every target="_blank" link, real <label> elements, a lang attribute, scroll-mt on anchor targets, and a lockfile committed with no dist/ in git.
+01 — Overall structure
+The file organisation is the strongest part of this project
+src/
+├─ components/
+│  ├─ layouts/   Layout · Sidebar · MobileNav
+│  ├─ sections/  Hero · About · Projects · Skills · Contact
+│  └─ ui/        ProjectCard · SectionHeading · SkillBadge · BrandIcons
+├─ pages/        Home
+├─ data/         projects.js · skills.js
+├─ App.jsx  main.jsx  index.css
+Three tiers — layouts (page chrome), sections (page regions) and ui (reusable primitives) — is exactly the right decomposition for a one-page site. Content lives in src/data/, so adding a project is a data edit, not a JSX edit. That's the decision that will save the most time later.
+
+Minor structural notes
+Dead files. src/App.css (a 4-line universal reset) is never imported, and the reset is already handled by Tailwind's Preflight. public/icons.svg (5.6 KB of unused symbols) is referenced nowhere.
+Naming drift. The Hero id is hero but its nav label is "Overview"; the section id="projects" renders the heading "Featured Work & Projects". Not a bug — just two vocabularies for one thing.
+Footer placement. The site footer is hard-coded inside pages/Home.jsx, so it would be duplicated on any second page. It belongs in Layout.jsx next to the sidebar.
+No LICENSE. A public repo with no licence is legally "all rights reserved" — fine for a portfolio, but it stops anyone reading the code as a reference. MIT is one file.
+02 — Code quality
+Readable and consistent; the main debt is duplication between the two navs
+The JSX is easy to follow: small components, descriptive prop names, no premature abstraction, and no useEffect where a derived value would do. There is exactly one useEffect in the whole codebase. Lint is clean (eslint . → exit 0, zero warnings).
+
+Medium
+The nav item list is duplicated in two components and already drifting
+Sidebar.jsx:15 · MobileNav.jsx:17
+Both components declare their own navItems array. They've already diverged — Sidebar carries an extra id field. Add a section tomorrow and you must remember to edit two files; forget one and the mobile menu silently loses it.
+
+// src/data/navigation.js
+export const navItems = [
+  { id: "hero",     label: "Overview", icon: Terminal },
+  { id: "about",    label: "About",    icon: User },
+  { id: "projects", label: "Projects", icon: FolderGit2 },
+  { id: "skills",   label: "Skills",   icon: Wrench },
+  { id: "contact",  label: "Contact",  icon: Mail },
+];
+
+// then in both components:
+import { navItems } from "../../data/navigation";
+// href is derived, never typed twice:
+href={`#${item.id}`}
+Medium
+The scroll-spy re-implements IntersectionObserver by hand — and hardcodes the section list
+Sidebar.jsx:23–43
+The handler reads offsetTop and offsetHeight on every scroll event, forcing a layout read each time, and it repeats the section ids a third time inside the effect. I tested it in a real browser at every section — it works (correct nav item highlighted at #hero, #about, #projects, #skills and #contact, and also when loading /#skills directly) — so this is a maintainability and efficiency note, not a bug.
+
+useEffect(() => {
+  const observer = new IntersectionObserver(
+    (entries) => {
+      const visible = entries.filter((e) => e.isIntersecting);
+      if (visible.length) setActiveSection(visible[0].target.id);
+    },
+    { rootMargin: "-45% 0px -45% 0px" }  // active = what crosses mid-viewport
+  );
+  navItems.forEach(({ id }) => {
+    const el = document.getElementById(id);
+    if (el) observer.observe(el);
+  });
+  return () => observer.disconnect();
+}, []);
+Why it matters: drops ~1 forced reflow per scroll tick, kills the magic 200 px offset, and removes the duplicated id list — the ids come from the same array the links are rendered from.
+
+Low
+Dead hover style: group-hover with no group ancestor
+ProjectCard.jsx:40
+The card title has group-hover:text-indigo-300, but I walked the DOM and no ancestor carries the group class token. The colour never changes. Same class is used correctly in Contact.jsx and Sidebar.jsx, so this one just got forgotten on the card.
+
+// ProjectCard.jsx — add the group token to the article
+<article className="group rounded-2xl border ...">
+Low
+Array index used as key
+ProjectCard.jsx:59,74 · Skills.jsx:15,30
+Static, never-reordered lists — so this is harmless today. It becomes a real bug the moment anything is filterable or sortable (the projects grid is already filterable). Cheap to fix while the data is in front of you.
+
+{highlights.map((item) => <li key={item}>…</li>)}
+{groups.map((g) => <div key={g.category}>…</div>)}
+Naming and readability are fine. No abbreviations to decode, no 300-line components (largest is Contact.jsx at 189 lines — and most of that is markup), no prop-drilling beyond one level. The one thing I'd change stylistically is the repeated long Tailwind class strings on similar cards; a tiny cx() helper or extracting a <Card> wrapper would remove the same bg-slate-800/60 border border-slate-700/80 rounded-2xl string that currently appears ~8 times.
+03 — HTML / CSS / React best practices
+Solid semantics and responsiveness; one layout bug at short viewports
+Semantics are genuinely good: <main>, <aside>, <nav>, <article> and <header> are used for what they mean, heading order is a clean h1 → h2 → h3 with no skipped levels, and anchor targets carry scroll-mt-6. The mobile↔desktop split (sticky sidebar above md, top bar + drawer below) is the right pattern and the breakpoint is correct.
+
+Medium
+The desktop sidebar is taller than a short laptop viewport, and it cannot scroll
+Sidebar.jsx:48
+The aside is h-screen with justify-between and no overflow rule. At a 1280×720 window the content is 664 px tall inside a 577 px box — measured in the browser — so the footer block (the Foundry callout, the social icons and the copyright line) is pushed 87 px below the fold, and because overflow-y computes to visible it's clipped with no scrollbar to reach it. It's visible in the screenshot of the running build as a cut-off card at the bottom of the rail.
+
+// Sidebar.jsx:48 — collide-safe: let the rail scroll instead of clipping
+<aside className="w-72 ... h-screen sticky top-0 shrink-0 overflow-y-auto">
+Why it matters: 720 pixel-tall laptop windows and any browser with a large bookmarks bar are the common case. Right now those visitors simply lose your GitHub/LinkedIn/email links. A tighter fix is justify-start gap-6 plus overflow-y-auto so the social block scrolls into reach rather than being pinned.
+
+Low
+Dead utility classes: animate-in fade-in render nothing
+MobileNav.jsx:62
+Those classes come from the tailwindcss-animate plugin, which isn't installed. I grepped the built stylesheet: the only @keyframes present is Tailwind's own pulse. So the mobile drawer opens instantly with no transition — the class is documenting an animation that doesn't exist. Either delete it (honest) or add the plugin (nice).
+
+// Tailwind v4 — define it yourself in index.css, no plugin needed
+@keyframes drawer-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@utility animate-drawer-in {
+  animation: drawer-in 180ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  @utility animate-drawer-in { animation: none; }
+}
+Low
+No prefers-reduced-motion handling anywhere
+index.css · index.html
+html { scroll-behavior: smooth } and the pulsing availability dot both run unconditionally. Zero occurrences of prefers-reduced-motion in the source or the built CSS. For motion-sensitive visitors, smooth-scrolling a 5,000 px page is genuinely unpleasant.
+
+/* src/index.css */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}
+Low
+Filter pills are unordered buttons with no state announced
+Projects.jsx:31–45
+The four filters visually toggle, but a screen reader announces four identical "button"s with no indication of which one is selected. Wrap them in a group and expose the state.
+
+<div role="group" aria-label="Filter projects by category">
+  {categories.map((cat) => (
+    <button
+      key={cat.value}
+      aria-pressed={filter === cat.value}
+      onClick={() => setFilter(cat.value)}
+    >{cat.label}</button>
+  ))}
+</div>
+04 — Accessibility
+The one place I'd call out as a real gap
+I measured this rather than eyeballing it: checked label-to-control association through the DOM, computed real contrast ratios by rasterising each colour through canvas (Tailwind v4 emits oklch(), which naive parsers get wrong), and inspected focus styling.
+
+High
+Every form label is unassociated — clicking a label does not focus its field
+Contact.jsx:117,131,147,162
+All four labels are plain <label> elements with no htmlFor, and the inputs have no id — I confirmed label.control is null for every one. Screen-reader users hear "edit text, blank" instead of "Your Email, edit text". A pointer user who clicks the word "Message" gets nothing. This is the classic WCAG 1.3.1 / 3.3.2 failure and it's four attributes to fix.
+
+<label htmlFor="contact-email" className="...">Your Email</label>
+<input
+  id="contact-email"
+  name="email"
+  type="email"
+  autoComplete="email"
+  required
+  aria-required="true"
+  value={formData.email}
+  onChange={handleChange}
+/>
+Also add autoComplete="name" / "email" — it lets password managers and phone autofill work, and browsers score it under WCAG 1.3.5.
+
+Medium
+Focus rings are deliberately removed and never replaced
+Contact.jsx:127,141,157,172
+Every input carries focus:outline-none and only changes its border colour to indigo-500. On the dark panel that is a very low-contrast 1 px change — effectively invisible for keyboard users. Links and buttons keep the browser default, so the experience is also inconsistent.
+
+// replace focus:outline-none with a visible ring on every interactive element
+className="... focus:outline-none focus-visible:ring-2
+              focus-visible:ring-indigo-400 focus-visible:ring-offset-2
+              focus-visible:ring-offset-slate-900"
+Medium
+Two text styles fall below WCAG AA contrast (4.5:1)
+Sidebar.jsx:148 · Home.jsx:16
+Measured ratios against their real composited backgrounds:
+
+Element	Size	Ratio	Needs	Result
+Sidebar copyright (text-slate-500)	11 px	3.74:1	4.5	Fail
+Footer "Built with…" (text-slate-500)	12 px	4.23:1	4.5	Fail
+Inactive filter pill (text-slate-400)	12 px	5.56:1	4.5	Pass
+Project tag (text-slate-300)	12 px	6.83:1	4.5	Pass
+About pillar body (text-slate-400)	12 px	5.51:1	4.5	Pass
+// one-step bump fixes both, without changing the visual hierarchy
+text-slate-500  →  text-slate-400   // 5.5:1 on slate-950
+Good news: the body copy, card text and every button label pass comfortably — the palette is mostly well chosen. Only these two muted "slate-500" lines miss.
+
+Low
+Mobile drawer: no aria-expanded, no Escape, no focus management
+MobileNav.jsx:50–57
+The hamburger has a decent aria-label, but it never announces open/closed state, and the menu can't be dismissed with Escape. Tabbing out of the drawer leaves it open over the page. Also worth noting: the two icon-only links in the mobile drawer (GitHub, Mail) have aria-label on the desktop sidebar but not here.
+
+<button
+  type="button"
+  aria-label="Toggle navigation menu"
+  aria-expanded={isOpen}
+  aria-controls="mobile-menu"
+  onClick={() => setIsOpen((v) => !v)}
+>
+…
+{isOpen && <div id="mobile-menu" …>}
+Low
+Duplicate landmark: two <nav>s, neither labelled
+Sidebar.jsx:74 · MobileNav.jsx:63
+aria-label is used 4 times for icon links but never on the navigation landmarks. When both exist in the accessibility tree a screen reader announces "navigation" twice with no way to tell them apart.
+
+<nav aria-label="Main" className="mt-6 space-y-1.5">       // Sidebar
+<nav aria-label="Mobile" className="space-y-1">            // MobileNav
+05 — Performance
+Fast in practice — but the bundle is heavier than this page needs
+Measured from the real production build served locally:
+
+Asset	Raw	Gzipped	Verdict
+index.js	265.9 kB	80.6 kB	Heavy for one page
+index.css	36.2 kB	6.6 kB	Fine
+favicon.svg	9.6 kB	—	Large for an icon
+Images / fonts	0	0	Excellent — no image payload at all
+DOM interactive	97 ms (local)	Fast
+The most impressive performance fact about this site is what isn't there: zero images, zero web fonts, zero third-party scripts. That's why it feels instant despite the JS weight.
+
+Medium
+The entire app ships as a single un-split 266 kB chunk
+vite.config.js
+One index.js contains React, ReactDOM and every icon and section. There's no manualChunks, and the React Compiler + Babel pipeline adds build weight without buying much on a page with two pieces of state. Most of the 266 kB is ReactDOM itself — unavoidable for React — so the realistic win is splitting vendor from app so the vendor chunk can be cached across deploys.
+
+// vite.config.js — vendor chunk becomes cacheable across deploys
+export default defineConfig({
+  plugins: [tailwindcss(), react(), babel({ presets: [reactCompilerPreset()] })],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ["react", "react-dom", "react/jsx-runtime"],
+          icons: ["lucide-react"],
+        },
+      },
+    },
+  },
+});
+Bigger question worth asking: a 5-section static page has almost no interactivity — two pieces of state (nav open, project filter) and one form. If you ever want a dramatically smaller site, this is a prime candidate for Astro or plain HTML. That's a rewrite, not a fix, so it's listed as optional below — not a recommendation to do it now.
+
+Low
+React Compiler is enabled but has essentially nothing to optimise
+vite.config.js:5–9 · package.json
+babel-plugin-react-compiler and @rolldown/plugin-babel run on every build. The codebase has one useEffect and two useStates — there is no re-render problem for it to solve. It costs build time and a Node ≥ 22.12 requirement (see dependency section) for no measurable runtime benefit here. Removing it simplifies the toolchain considerably.
+
+Low
+The favicon is still the stock Vite logo, and it's 9.6 kB
+public/favicon.svg
+It contains Vite's brand purple (#863bff) — so the browser tab shows the Vite logo, not yours. It also ships a 9.6 kB multi-gradient SVG where a hand-written ~400-byte monogram would be sharper at every size. For a portfolio, the tab icon is part of the branding.
+
+06 — Security
+Clean on secrets and dependencies — but the contact form is a genuine problem
+Dependency audit: 0 vulnerabilities. npm audit reports found 0 vulnerabilities, and a manual grep for API keys, tokens, secrets, passwords and sk-…-shaped strings across all source and config files returns nothing. There is no .env, and no client-side secret pattern to leak. Every target="_blank" link correctly pairs with rel="noreferrer" (which also implies noopener), closing the reverse-tabnabbing hole that's usually the one real issue on portfolio sites. There is no dangerouslySetInnerHTML anywhere, so React's escaping covers the input surface.
+High
+The contact form reports success without sending anything
+Contact.jsx:22–26
+handleSubmit calls preventDefault() and then setSubmitted(true). Nothing else. I instrumented window.fetch and XMLHttpRequest, filled the form and submitted it: zero network requests were made, and the UI showed "Message Received! … I will review your message and get back to you shortly."
+
+This is the highest-impact issue in the repo, and it isn't a security hole — it's a trust hole. Any recruiter or collaborator who uses that form believes they reached you and will never follow up by email, because the page told them it worked. On a portfolio, the contact form is the conversion path.
+
+// Honest minimal fix — works with no backend at all
+const handleSubmit = (e) => {
+  e.preventDefault();
+  const subject = encodeURIComponent(formData.subject);
+  const body = encodeURIComponent(
+    `${formData.message}\n\n— ${formData.name} (${formData.email})`
+  );
+  window.location.href = `mailto:pradhanshreejal0@gmail.com?subject=${subject}&body=${body}`;
+  setSubmitted(true);
+};
+Better options, in order of quality: (1) a real endpoint — Formspree, Web3Forms, Netlify Forms or a small /api/contact on Vercel; (2) the mailto: fallback above, with the success copy changed to "Your email app should now be open"; (3) if you genuinely don't want messages, remove the form entirely and keep the email/GitHub cards, which already work. What you must not keep is a form that lies.
+
+Low
+Placeholder LinkedIn URL ships in the sidebar
+Sidebar.jsx:131
+href="https://linkedin.com" — the bare homepage, not a profile. It's not a security risk, but it's a dead-end link on the most-visited part of the page. Set a real profile URL or remove the icon.
+
+Low
+No XSS surface today — but note the one pattern to avoid
+Contact.jsx:100
+Thank you for reaching out, {formData.name} is rendered as a React text node, so it is escaped and safe. Worth flagging for the future: if a real backend is added and you ever render the echoed value with dangerouslySetInnerHTML (e.g. to support line breaks in a message), that becomes stored XSS. Use white-space: pre-wrap instead of injecting HTML.
+
+07 — SEO & meta tags
+The basics are right; everything social is missing
+Present and correct: <title> (60 chars, name + role), meta description (155 chars, keyword-rich), charset, viewport, lang="en", a semantic h1 containing the real name.
+
+High
+No Open Graph or Twitter Card tags — shared links render as a bare URL
+index.html
+For a portfolio, the primary distribution channel is being pasted into a chat, a DM or a tweet. With zero og: or twitter: tags, every one of those shares shows a naked link with no title, no description and no image — measurably worse click-through than a rich card. I confirmed the built dist/index.html contains none.
+
+<meta property="og:type"        content="website" />
+<meta property="og:title"       content="Shreejal Pradhan — MERN-Stack Developer" />
+<meta property="og:description" content="Fullstack developer building scalable web apps with React, Node.js and MongoDB." />
+<meta property="og:image"       content="https://your-domain.com/og.png" />
+<meta property="og:url"         content="https://your-domain.com/" />
+
+<meta name="twitter:card"        content="summary_large_image" />
+<meta name="twitter:title"       content="Shreejal Pradhan — MERN-Stack Developer" />
+<meta name="twitter:description" content="Fullstack developer building scalable web apps." />
+<meta name="twitter:image"       content="https://your-domain.com/og.png" />
+Use absolute URLs for og:image and og:url — relative paths are ignored by most scrapers. A 1200×630 PNG is the size that renders without cropping.
+
+Medium
+The page is 100% client-rendered, so <body> is empty without JS
+index.html
+The entire HTML payload a crawler receives before executing JavaScript is <div id="root"></div>. Google renders JS and will cope, but Bing and most link-preview bots don't — which compounds the missing-OG problem. Cheapest real fix: put a meaningful <noscript> block and the name/role text in the static HTML.
+
+<div id="root">
+  <noscript>
+    <h1>Shreejal Pradhan — MERN-Stack Developer</h1>
+    <p>Fullstack developer building scalable web apps with MongoDB, Express, React and Node.js.
+       Reach me at <a href="mailto:pradhanshreejal0@gmail.com">pradhanshreejal0@gmail.com</a>.</p>
+  </noscript>
+</div>
+Low
+No structured data, robots.txt or sitemap.xml
+index.html · public/
+A one-page site doesn't need much, but JSON-LD Person markup is what lets Google associate your name with your skills and links — valuable for a name-based search, which is exactly how a recruiter looks you up.
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Person",
+  "name": "Shreejal Pradhan",
+  "jobTitle": "MERN-Stack Developer",
+  "url": "https://your-domain.com/",
+  "sameAs": ["https://github.com/pradhanshreejal0"]
+}
+</script>
+Also worth adding: public/robots.txt and a sitemap.xml (a one-URL sitemap is legitimate), plus a <link rel="canonical">.
+
+08 — Dependency health
+Current and secure — one toolchain constraint is worth removing
+Check	Result	Note
+npm audit	0 vulnerabilities	Clean
+Lockfile committed	Yes	Reproducible installs
+dist/ in git	No	Correctly gitignored
+Outdated packages	3 of 17	All patch/minor — none breaking
+Runtime deps	5	Very lean
+engines / .nvmrc	Missing	See below
+Medium
+The build needs Node ≥ 22.12, but nothing in the repo says so
+package.json
+On the sandbox's Node 20, npm install printed EBADENGINE for @rolldown/plugin-babel, which declares node >=22.12. The build happened to succeed anyway, but new contributors and most CI images default to Node 18 or 20 and will hit this immediately — with a warning that looks ignorable and isn't guaranteed to be.
+
+// package.json
+"engines": { "node": ">=22.12" }
+
+// and add .nvmrc containing: 22
+Or remove the cause. @rolldown/plugin-babel exists only to run the React Compiler, which — per the performance section — has nothing to optimise in this codebase. Deleting the Babel plugin, @rolldown/plugin-babel and babel-plugin-react-compiler restores Node 20 compatibility and simplifies the build. Two problems, one deletion.
+
+Low
+Three packages are a patch release behind
+package.json
+Package	Current	Latest	Type
+lucide-react	1.62.0	1.66.0	Minor — new icons
+eslint	10.13.0	10.14.0	Patch
+@rolldown/plugin-babel	0.2.4	0.3.0	Pre-1.0 minor
+None of these is a security concern. npm update handles the first two safely; the third is the package I'd rather delete than upgrade.
+
+Low
+package.json still says "name": "client" and the README is the Vite template
+package.json · README.md
+The project is named client (a leftover from a MERN boilerplate) and the README is the unedited "React + Vite — This template provides a minimal setup…" text. For a repo that's part of your portfolio, the README is the first thing a reviewer reads and it currently describes a template, not your work.
+
+09 — Prioritized action list
+What to fix, in the order I'd fix it
+P1
+Make the contact form real (or honest)
+Wire it to Formspree/Web3Forms/a serverless route, or switch to mailto:. Change the success copy to match what actually happened. ~30 min
+
+P1
+Associate all four form labels with htmlFor/id
+Four attributes, four fields. Add autoComplete while you're there. ~10 min
+
+P1
+Add Open Graph + Twitter Card tags
+Your main traffic source is a pasted link. Ten minutes of meta tags changes how every share looks. ~15 min
+
+P2
+Add overflow-y-auto to the sidebar
+Stops the social/footer block being clipped below the fold on short laptop screens. One class. ~2 min
+
+P2
+Give inputs a visible focus-visible ring
+Replace focus:outline-none with a ring; make links/buttons consistent. ~15 min
+
+P2
+Bump text-slate-500 → text-slate-400
+Fixes both sub-4.5:1 contrast failures. Two classes. ~3 min
+
+P2
+Extract navItems into src/data/navigation.js
+Removes the duplication that's already drifting between the two navs. ~20 min
+
+P3
+Housekeeping sweep
+Delete App.css + icons.svg; replace the Vite favicon; fix the placeholder LinkedIn URL; rename the package; write a real README; add a LICENSE. ~45 min
+
+P3
+Simplify the toolchain
+Drop React Compiler + Babel plugin, add engines/.nvmrc, split the vendor chunk, add prefers-reduced-motion. ~1 h
+
+P3
+Scroll-spy → IntersectionObserver; add label state to filters and drawer
+Replace the manual scroll math; add aria-pressed / aria-expanded / aria-label on navs. ~1 h
+
+10 — Quick wins
+Fifteen minutes, real improvement
+Add overflow-y-auto to the sidebar
+1 line · unclips the footer block on short screens
+text-slate-500 → text-slate-400 in the sidebar copyright and the site footer
+2 edits · clears both WCAG AA failures
+Add id + htmlFor to the four form fields
+8 attributes · makes labels clickable and announced
+Replace every focus:outline-none with focus-visible:ring-2
+4 class strings · restores keyboard visibility
+Paste the OG/Twitter block into index.html
+10 tags · shares stop looking like bare URLs
+Set the LinkedIn href to your real profile
+1 line · removes a dead-end link
+Add group to the ProjectCard <article>
+1 token · makes the existing hover style work
+Delete src/App.css and public/icons.svg
+2 files · removes 11 lines + 5.6 kB of dead weight
+Drop animate-in fade-in (or add the real CSS)
+1 class · stops documenting an animation that never runs
+Add "engines": { "node": ">=22.12" } and an .nvmrc
+2 files · prevents a confusing install warning for contributors
+11 — Worth considering, not urgent
+Two bigger swings, only if you want them
+Add a screenshot to each project card
+The cards are all text. For a portfolio, a single 16:9 thumbnail per project does more for credibility than any amount of description. Ship them as webp at ~700 px wide, loading="lazy", and give each a real alt — it's the one place where adding images is clearly worth the payload you currently don't have.
+
+Consider Astro or plain HTML later
+This page has two pieces of state. Shipping 266 kB of React to render static text is a lot of machinery, and an Astro build would put the same markup on the wire for near-zero JS — which also solves the client-rendered SEO problem outright. Don't rewrite it today: the current app is working, and the fixes above matter far more than the framework choice.
+
+Reviewed at commit 3a30e16 · 6 commits · 29 tracked files · 1,092 LOC in src
+Method: cloned repo → npm install → vite build → eslint . → npm audit / npm outdated → production bundle served locally and probed in headless Chromium (scroll-spy, sidebar geometry, form network activity, label association, computed contrast, DOM class ancestry).
